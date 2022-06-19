@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>react hooks</title>
+</head>
+<body>
+    <script>
+        let isMount = true;
+        let workInProgressHook;
+        
+        const fiber = {
+            stateNode: App,
+            memoizedState: null,//当前hooks
+        }
+
+        const schedule = () => {
+            workInProgressHook = fiber.memoizedState;//初始化当前hook
+            const app = fiber.stateNode();
+            isMount = false;
+            return app;
+        }
+
+        const dispatchAction = (queue, action) => {
+            const update = {
+                action,
+                next: null,
+            }
+            if (queue.pending == null) {
+                update.next = update;//构成换
+            } else {
+                update.next = queue.pending.next;//将update插入环//queue.pending指最后一个元素
+                queue.pending.next = update;
+            }
+            queue.pending = update;
+            schedule();//触发，打印
+
+        }
+
+        const useState = (initialState) => {
+            let hook;
+            if (isMount) {
+                hook = {
+                    queue: {
+                        pending: null,
+                    },
+                    memoizedState: initialState,//初始化
+                    next: null
+                }
+                if (!fiber.memoizedState) {
+                    fiber.memoizedState = hook
+                } else {
+                    workInProgressHook.next = hook
+                }
+                workInProgressHook = hook
+            } else {
+                hook = workInProgressHook;
+                workInProgressHook = workInProgressHook.next
+            }
+            //取到了当前的hook 
+            let baseState = hook.memoizedState;
+            //需要计算
+            if (hook.queue.pending) {
+                let firstUpdate = hook.queue.pending.next;//第一个update
+                do {
+                    const action = firstUpdate.action;//这里的action简化为function
+                    baseState = action(baseState);
+                    firstUpdate = firstUpdate.next;
+                }
+                while (firstUpdate !== hook.queue.pending.next)//遍历环状链表
+                hook.queue.pending=null//遍历完成，清楚缓存
+            } 
+            hook.memoizedState = baseState
+            return [baseState, dispatchAction.bind(null, hook.queue)];
+        }
+
+        function App() {
+            const [num, setNum] = useState(0);
+            const [ss, setSs] = useState(100);
+            console.info(num, ss, '-----isMount', isMount)
+
+            return {
+                click() {
+                    setNum(num => num + 1)
+                },
+                tt() {
+                    setSs(s => s + 1)
+                }
+
+            }
+        }
+        window.app = schedule();
+    </script>
+</body>
+
+</html>
